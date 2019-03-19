@@ -3,6 +3,7 @@ drop table Zvirata CASCADE CONSTRAINTS;
 drop table Lecby cascade constraints;
 drop table Predpisy cascade constraints;
 drop table Leky cascade constraints;
+drop table Druhy cascade constraints;
 drop table Osoby CASCADE CONSTRAINTS;
 
 
@@ -27,6 +28,10 @@ create table Zamestnanci(
 
     foreign key (osobni_zaznamy) references Osoby(osobni_cislo) on delete cascade
 );
+create table Druhy(
+id_druhu NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+nazev varchar(20)
+);
 
 create table Zvirata(
     cislo_zvirete NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -34,7 +39,9 @@ create table Zvirata(
     datum_narozeni date,
     datum_posledni_prohlidky date,
     vlastnik integer,
-
+    druh integer,
+    
+    foreign key (druh) references Druhy(id_druhu) on delete cascade,
     foreign key (vlastnik) references Osoby(osobni_cislo) on delete cascade
 );
 
@@ -43,16 +50,18 @@ create table Lecby(
     diagnoza blob, 
     datum_zahajeni date,
    stav varchar(200),
-   CONSTRAINT check_stav CHECK (stav IN ('Probihajici', 'Prerusena', 'Ukoncena')) 
+   CONSTRAINT check_stav CHECK (stav IN ('Probihajici', 'Prerusena', 'Ukoncena')),
+   
+   zahajujici_osetrovatel integer,
+   foreign key (zahajujici_osetrovatel) references Zamestnanci(rc) on delete cascade,
+   
+   zvire integer,
+   foreign key (zvire) references Zvirata(cislo_zvirete) on delete cascade,
+   
+    druh integer,
+   foreign key (druh) references Druhy(id_druhu) on delete cascade
+   
 );
-
-create table Predpisy(
-kod_predpisu NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-davkovani varchar(20),
-doba_podavani varchar(20),
-podan_v_ordinaci varchar(3)
-);
-
 create table Leky(
     kod_leku NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nazev varchar(20),
@@ -60,6 +69,18 @@ create table Leky(
     kontraindikace varchar(150),
     ucinna_lata varchar(20)
 );
+create table Predpisy(
+kod_predpisu NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+davkovani varchar(20),
+doba_podavani varchar(20),
+podan_v_ordinaci varchar(3),
+lecba integer,
+   foreign key (lecba) references Lecby(kod_lecby) on delete cascade,
+   predepsany_lek integer,
+   foreign key (predepsany_lek) references Leky(kod_leku) on delete cascade
+);
+
+
 
 
 
