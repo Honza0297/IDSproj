@@ -1,86 +1,122 @@
-drop table Zamestnanci CASCADE CONSTRAINTS;
-drop table Zvirata CASCADE CONSTRAINTS;
-drop table Lecby cascade constraints;
-drop table Predpisy cascade constraints;
-drop table Leky cascade constraints;
-drop table Druhy cascade constraints;
-drop table Osoby CASCADE CONSTRAINTS;
+DROP TABLE Zamestnanci CASCADE CONSTRAINTS;
+DROP TABLE Zvirata CASCADE CONSTRAINTS;
+DROP TABLE Lecby CASCADE CONSTRAINTS;
+DROP TABLE Predpisy CASCADE CONSTRAINTS;
+DROP TABLE Leky CASCADE CONSTRAINTS;
+DROP TABLE Druhy CASCADE CONSTRAINTS;
+DROP TABLE Nemoci CASCADE CONSTRAINTS;
+DROP TABLE Urceni_leku_pro_nemoc CASCADE CONSTRAINTS;
+DROP TABLE Davkovani_pro_druh CASCADE CONSTRAINTS;
+DROP TABLE Osoby CASCADE CONSTRAINTS;
 
 
-create table Osoby(
+CREATE TABLE Osoby(
     osobni_cislo NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    jmeno VARCHAR(20) not null, 
-    prijmeni VARCHAR(20) not null,
-    titul VARCHAR(20) not null, 
-    ulice VARCHAR(20) not null, 
-    cislo_popisne integer not null, 
-    mesto VARCHAR(20) not null, 
-    psc integer not null
+    jmeno VARCHAR(255) NOT NULL, 
+    prijmeni VARCHAR(255) NOT NULL,
+    titul VARCHAR(255), 
+    ulice VARCHAR(255) NOT NULL, 
+    cislo_popisne NUMBER NOT NULL, 
+    mesto VARCHAR(255) NOT NULL, 
+    psc NUMBER NOT NULL
 );
 
-create table Zamestnanci(
-    rc int not null primary key,
-    cislo_uctu int,
-    kod_banky int,
-    pozice VARCHAR(20), 
-    hodinova_mzda int,
-    osobni_zaznamy int,
+CREATE TABLE Zamestnanci(
+    rc NUMBER NOT NULL PRIMARY KEY,
+    cislo_uctu NUMBER,
+    kod_banky NUMBER,
+    pozice VARCHAR(20) NOT NULL, 
+    hodinova_mzda NUMBER NOT NULL,
+    osobni_zaznamy NUMBER NOT NULL,
 
-    foreign key (osobni_zaznamy) references Osoby(osobni_cislo) on delete cascade
-);
-create table Druhy(
-id_druhu NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-nazev varchar(20)
+    FOREIGN KEY (osobni_zaznamy) REFERENCES Osoby(osobni_cislo) ON DELETE CASCADE
 );
 
-create table Zvirata(
+CREATE TABLE Druhy(
+    id_druhu NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nazev VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE Zvirata(
     cislo_zvirete NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    jmeno varchar(20),
-    datum_narozeni date,
-    datum_posledni_prohlidky date,
-    vlastnik integer,
-    druh integer,
+    jmeno VARCHAR(50),
+    datum_narozeni DATE NOT NULL,
+    datum_posledni_prohlidky DATE NOT NULL,
+    vlastnik NUMBER NOT NULL,
+    druh NUMBER NOT NULL,
     
-    foreign key (druh) references Druhy(id_druhu) on delete cascade,
-    foreign key (vlastnik) references Osoby(osobni_cislo) on delete cascade
+    FOREIGN KEY (druh) REFERENCES Druhy(id_druhu) ON DELETE CASCADE,
+    FOREIGN KEY (vlastnik) REFERENCES Osoby(osobni_cislo) ON DELETE CASCADE
 );
 
-create table Lecby(
+CREATE TABLE Lecby(
     kod_lecby NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    diagnoza blob, 
-    datum_zahajeni date,
-   stav varchar(200),
-   CONSTRAINT check_stav CHECK (stav IN ('Probihajici', 'Prerusena', 'Ukoncena')),
+    diagnoza VARCHAR(500) NOT NULL, 
+    datum_zahajeni DATE NOT NULL,
+    stav VARCHAR(50) DEFAULT 'Probihajici' CHECK (stav IN ('Probihajici', 'Prerusena', 'Ukoncena')),
    
-   zahajujici_osetrovatel integer,
-   foreign key (zahajujici_osetrovatel) references Zamestnanci(rc) on delete cascade,
+   zahajujici_osetrovatel NUMBER NOT NULL,
+   FOREIGN KEY (zahajujici_osetrovatel) REFERENCES Zamestnanci(rc) ON DELETE CASCADE,
    
-   zvire integer,
-   foreign key (zvire) references Zvirata(cislo_zvirete) on delete cascade,
-   
-    druh integer,
-   foreign key (druh) references Druhy(id_druhu) on delete cascade
-   
+   zvire NUMBER NOT NULL,
+   FOREIGN KEY (zvire) REFERENCES Zvirata(cislo_zvirete) ON DELETE CASCADE
 );
-create table Leky(
+
+CREATE TABLE Leky(
     kod_leku NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    nazev varchar(20),
-    typ varchar(20),
-    kontraindikace varchar(150),
-    ucinna_lata varchar(20)
-);
-create table Predpisy(
-kod_predpisu NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-davkovani varchar(20),
-doba_podavani varchar(20),
-podan_v_ordinaci varchar(3),
-lecba integer,
-   foreign key (lecba) references Lecby(kod_lecby) on delete cascade,
-   predepsany_lek integer,
-   foreign key (predepsany_lek) references Leky(kod_leku) on delete cascade
+    nazev VARCHAR(20) NOT NULL,
+    typ VARCHAR(20) NOT NULL,
+    kontraindikace VARCHAR(150),
+    ucinna_latka VARCHAR(20) NOT NULL
 );
 
+CREATE TABLE Predpisy( 
+    kod_predpisu NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    davkovani VARCHAR(20) NOT NULL,
+    doba_podavani VARCHAR(20),    
+    podan_v_ordinaci VARCHAR(3) NOT NULL,
+    CONSTRAINT podan_v_ordinaci CHECK (podan_v_ordinaci IN ('ANO', 'NE')),
+    
+    kod_lecby NUMBER NOT NULL,
+    FOREIGN KEY (kod_lecby) REFERENCES Lecby(kod_lecby) ON DELETE CASCADE,
+    
+    predepsany_lek NUMBER NOT NULL,
+    FOREIGN KEY (predepsany_lek) REFERENCES Leky(kod_leku) ON DELETE CASCADE,
+
+    vypsal NUMBER NOT NULL,
+    FOREIGN KEY (vypsal) REFERENCES Zamestnanci(rc) ON DELETE CASCADE    
+);
+
+CREATE TABLE Nemoci(
+    kod_nemoci NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nazev varchar(255) NOT NULL
+);
+
+CREATE TABLE Urceni_leku_pro_nemoc (
+    kod_nemoci NUMBER NOT NULL,
+    CONSTRAINT ur_kod_nemoci FOREIGN KEY (kod_nemoci) REFERENCES Nemoci(kod_nemoci),
+    
+    kod_leku NUMBER NOT NULL,   
+    CONSTRAINT ur_kod_leku FOREIGN KEY (kod_leku) REFERENCES Leky(kod_leku)
+);
+
+CREATE TABLE Davkovani_pro_druh(
+    doporucene_davkovani number not null,
+    kod_leku NUMBER NOT NULL,
+    CONSTRAINT da_kod_leku FOREIGN KEY (kod_leku) REFERENCES Leky(kod_leku),
+    
+    id_druhu NUMBER NOT NULL,   
+    CONSTRAINT da_id_druhu FOREIGN KEY (id_druhu) REFERENCES Druhy(id_druhu)
+);
 
 
+INSERT INTO Osoby(jmeno, prijmeni, ulice, cislo_popisne, mesto, psc) 
+    VALUES('Jan', 'Beran', 'Bozetechova', 2, 'Ceska Trebova', 56003);
+    
+INSERT INTO Druhy(nazev)
+    VALUES('kocka');
+    
+INSERT INTO Zvirata(jmeno, datum_narozeni, datum_posledni_prohlidky, vlastnik, druh) 
+    VALUES('Micka', DATE'1998-12-20', DATE'2019-3-19', (SELECT osobni_cislo FROM Osoby WHERE jmeno='Jan' AND prijmeni='Beran' ), (SELECT id_druhu FROM Druhy WHERE nazev='kocka' ) );
 
 
