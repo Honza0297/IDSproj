@@ -52,6 +52,7 @@ CREATE TABLE Zvirata(
 CREATE TABLE Lecby(
     kod_lecby NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     diagnoza VARCHAR(500) NOT NULL, 
+    cena NUMBER,
     datum_zahajeni DATE NOT NULL,
     stav VARCHAR(50) DEFAULT 'Probihajici' CHECK (stav IN ('Probihajici', 'Prerusena', 'Ukoncena')),
    
@@ -230,11 +231,14 @@ INSERT INTO Zvirata(jmeno, datum_narozeni, datum_posledni_prohlidky, vlastnik, d
     VALUES('Mourek', DATE'2009-10-10', DATE'2019-3-2', (SELECT osobni_cislo FROM Osoby WHERE jmeno='Jasan' AND prijmeni='Statham' ), (SELECT id_druhu FROM Druhy WHERE nazev='kočka' ) );
 
 
-INSERT INTO Lecby(diagnoza, datum_zahajeni, stav, zahajujici_osetrovatel, zvire)
-	VALUES('Vysoké teploty, pravděpodobně slintavka', DATE'2019-03-10', 'Probihajici', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Micka'));
+INSERT INTO Lecby(diagnoza,cena, datum_zahajeni, stav, zahajujici_osetrovatel, zvire)
+	VALUES('Vysoké teploty, pravděpodobně slintavka',500, DATE'2019-03-10', 'Probihajici', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Micka'));
 
-INSERT INTO Lecby(diagnoza, datum_zahajeni, stav, zahajujici_osetrovatel, zvire)
-	VALUES('má blechy', DATE'2019-01-10', 'Ukoncena', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Rex'));
+INSERT INTO Lecby(diagnoza, cena, datum_zahajeni, stav, zahajujici_osetrovatel, zvire)
+	VALUES('má blechy', 200, DATE'2019-01-10', 'Ukoncena', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Rex'));
+
+INSERT INTO Lecby(diagnoza, cena, datum_zahajeni, stav, zahajujici_osetrovatel, zvire)
+	VALUES('chybí levá přední noha', 20000, DATE'2017-06-10', 'Ukoncena', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Rex'));
 
 INSERT INTO Predpisy(davkovani, doba_podavani, podan_v_ordinaci, kod_lecby, predepsany_lek, vypsal)
 	VALUES('2x2 tablety denně', 'tyden', 'NE', (SELECT L.kod_lecby FROM Lecby L, Zvirata Z WHERE L.datum_zahajeni=DATE'2019-03-10' AND Z.jmeno='Micka' AND L.zvire=Z.cislo_zvirete), (SELECT kod_leku FROM Leky WHERE nazev='sutlam'), (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'));
@@ -249,20 +253,41 @@ select osoby.osobni_cislo, osoby.prijmeni, osoby.jmeno from
 osoby join zvirata on osoby.osobni_cislo = zvirata.vlastnik join druhy on zvirata.druh = druhy.id_druhu
 where druhy.nazev = 'kočka';
 
+/*Spojení dvou tabulek: Jmena všech evidovaných psů?*/
+select Z.jmeno
+from zvirata Z, druhy D
+where D.nazev = 'pes' and Z.druh = D.id_druhu;
 
 /*Spojení dvou tabulek (přes vazební tabulku): Který lék léčí malárii? */
 select leky.nazev from
 leky join urceni_leku_pro_nemoc on leky.kod_leku = urceni_leku_pro_nemoc.kod_leku join nemoci on urceni_leku_pro_nemoc.kod_nemoci = nemoci.kod_nemoci
 where nemoci.nazev = 'malárie';
 
+/*Dotaz s group_by: Kolik stály všechny léčby jednotlivých zvířat v součtu?*/
+select Z.cislo_zvirete, Z.jmeno, sum(L.cena) as cena_za_lecby
+from zvirata Z, lecby L
+where L.zvire = Z.cislo_zvirete
+group by(Z.cislo_zvirete, Z.jmeno)
+order by(cena_za_lecby) desc;
+
 /*Dotaz s group_by: Kolik zvirat mají jednotlivé osoby? Osoby bez zvirat nas nezajimaji*/
 select osoby.prijmeni, osoby.jmeno, count(zvirata.vlastnik) as pocet_zviratek from
 osoby join zvirata on osoby.osobni_cislo = zvirata.vlastnik
 group by(osoby.prijmeni, osoby.jmeno);
+
+/*Dotaz s exists: Vypiš lecby s cenou menší než 2000*/
+select diagnoza, cena
+from lecby L
+where exists (select * from lecby where L.cena < 2000);
+
+/*Dotaz s IN a vnořeným selectem: Vypis evidovaných osob, které ale nejsou zaměstnanci kliiky*/
+select jmeno, prijmeni
+from osoby
+where osobni_cislo not in (select zamestnanci.osobni_zaznamy from zamestnanci);
 
 /*Dotaz s vnorenym selectem: Kdo ma plat vyssi nez prumerny?*/
 select osoby.prijmeni, osoby.jmeno, zamestnanci.pozice from
 zamestnanci join osoby on zamestnanci.osobni_zaznamy = osoby.osobni_cislo
 where zamestnanci.hodinova_mzda > 
     (select AVG(hodinova_mzda) from zamestnanci);
-
+    
