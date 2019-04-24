@@ -9,12 +9,15 @@ DROP TABLE Urceni_leku_pro_nemoc CASCADE CONSTRAINTS;
 DROP TABLE Davkovani_pro_druh CASCADE CONSTRAINTS;
 DROP TABLE Osoby CASCADE CONSTRAINTS;
 
+DROP SEQUENCE osoba_sequence;
+
+CREATE SEQUENCE osoba_sequence START WITH 1 INCREMENT BY 1 NOCYCLE;
 
 CREATE TABLE Osoby(
-    osobni_cislo NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    osobni_cislo NUMBER PRIMARY KEY,
     jmeno VARCHAR(25) NOT NULL, 
     prijmeni VARCHAR(40) NOT NULL,
-    titul VARCHAR(255), 
+    titul VARCHAR(40), 
     ulice VARCHAR(255) NOT NULL, 
     cislo_popisne NUMBER NOT NULL, 
     mesto VARCHAR(255) NOT NULL, 
@@ -65,6 +68,7 @@ CREATE TABLE Lecby(
 
 CREATE TABLE Leky(
     kod_leku NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    cena_leku number not null,
     nazev VARCHAR(20) NOT NULL,
     typ VARCHAR(20) NOT NULL,
     kontraindikace VARCHAR(150),
@@ -73,6 +77,7 @@ CREATE TABLE Leky(
 
 CREATE TABLE Predpisy( 
     kod_predpisu NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    doplatek NUMBER NOT NULL,
     davkovani VARCHAR(255) NOT NULL,
     doba_podavani VARCHAR(20),    
     podan_v_ordinaci VARCHAR(3) NOT NULL,
@@ -111,8 +116,34 @@ CREATE TABLE Davkovani_pro_druh(
 );
 
 
-INSERT INTO Osoby(jmeno, prijmeni, ulice, cislo_popisne, mesto, psc) 
-    VALUES('Jan', 'Beran', 'Božetěchova', 2, 'Česká Třebová', 56003);
+create or replace trigger cena_lecby 
+before insert or update of predepsany_lek, doplatek on Predpisy 
+for each row 
+declare 
+max_doplatek_leku number; 
+begin 
+select cena_leku 
+into max_doplatek_leku 
+from Leky 
+where Leky.kod_leku = :NEW.predepsany_lek; 
+if(:NEW.doplatek > max_doplatek_leku) 
+then raise_application_error(-20429,'Doplatek nemuze byt vyssi nez cela cena leku!'); 
+end if; 
+end; 
+/
+
+
+create or replace trigger id_osoba_trigger
+before insert on Osoby
+for each row
+begin
+select osoba_sequence.nextval INTO :NEW.osobni_cislo from dual;
+end;
+/
+
+
+INSERT INTO Osoby(osobni_cislo, jmeno, prijmeni, ulice, cislo_popisne, mesto, psc) 
+    VALUES(1, 'Jan', 'Beran', 'Božetěchova', 2, 'Česká Třebová', 56003);
 
 INSERT INTO Osoby(jmeno, prijmeni, titul, ulice, cislo_popisne, mesto, psc) 
     VALUES('Stanislav', 'Stejskal','MVDr.', 'Kuldova', 654, 'Brno', 60025);
@@ -179,14 +210,14 @@ INSERT INTO Nemoci(nazev)
     VALUES('slintavka');
 
 
-INSERT INTO Leky(nazev, typ, kontraindikace, ucinna_latka)
-    VALUES('amalar', 'antimalarika', 'alergie', 'AM2013');
+INSERT INTO Leky(nazev, cena_leku, typ, kontraindikace, ucinna_latka)
+    VALUES('amalar', 300, 'antimalarika', 'alergie', 'AM2013');
 
-INSERT INTO Leky(nazev, typ, kontraindikace, ucinna_latka)
-    VALUES('blechostop2000', 'antiparazitni', 'otevřené rány', 'oxid manganičitý');
+INSERT INTO Leky(nazev, cena_leku, typ, kontraindikace, ucinna_latka)
+    VALUES('blechostop2000', 250, 'antiparazitni', 'otevřené rány', 'oxid manganičitý');
 
-INSERT INTO Leky(nazev, typ, ucinna_latka)
-    VALUES('sutlam', 'antibiotika', 'penicilin');
+INSERT INTO Leky(nazev, cena_leku, typ, ucinna_latka)
+    VALUES('sutlam', 500, 'antibiotika', 'penicilin');
 
 
 INSERT INTO Urceni_leku_pro_nemoc(kod_nemoci, kod_leku)
@@ -232,16 +263,16 @@ INSERT INTO Zvirata(jmeno, datum_narozeni, datum_posledni_prohlidky, vlastnik, d
 
 
 INSERT INTO Lecby(diagnoza,cena, datum_zahajeni, stav, zahajujici_osetrovatel, zvire)
-	VALUES('Vysoké teploty, pravděpodobně slintavka',500, DATE'2019-03-10', 'Probihajici', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Micka'));
+    VALUES('Vysoké teploty, pravděpodobně slintavka',500, DATE'2019-03-10', 'Probihajici', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Micka'));
 
 INSERT INTO Lecby(diagnoza, cena, datum_zahajeni, stav, zahajujici_osetrovatel, zvire)
-	VALUES('má blechy', 200, DATE'2019-01-10', 'Ukoncena', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Rex'));
+    VALUES('má blechy', 200, DATE'2019-01-10', 'Ukoncena', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Rex'));
 
 INSERT INTO Lecby(diagnoza, cena, datum_zahajeni, stav, zahajujici_osetrovatel, zvire)
-	VALUES('chybí levá přední noha', 20000, DATE'2017-06-10', 'Ukoncena', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Rex'));
+    VALUES('chybí levá přední noha', 20000, DATE'2017-06-10', 'Ukoncena', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Rex'));
 
-INSERT INTO Predpisy(davkovani, doba_podavani, podan_v_ordinaci, kod_lecby, predepsany_lek, vypsal)
-	VALUES('2x2 tablety denně', 'tyden', 'NE', (SELECT L.kod_lecby FROM Lecby L, Zvirata Z WHERE L.datum_zahajeni=DATE'2019-03-10' AND Z.jmeno='Micka' AND L.zvire=Z.cislo_zvirete), (SELECT kod_leku FROM Leky WHERE nazev='sutlam'), (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'));
+INSERT INTO Predpisy(doplatek, davkovani, doba_podavani, podan_v_ordinaci, kod_lecby, predepsany_lek, vypsal)
+    VALUES(100, '2x2 tablety denně', 'tyden', 'NE', (SELECT L.kod_lecby FROM Lecby L, Zvirata Z WHERE L.datum_zahajeni=DATE'2019-03-10' AND Z.jmeno='Micka' AND L.zvire=Z.cislo_zvirete), (SELECT kod_leku FROM Leky WHERE nazev='sutlam'), (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'));
     
     
     
@@ -291,3 +322,41 @@ zamestnanci join osoby on zamestnanci.osobni_zaznamy = osoby.osobni_cislo
 where zamestnanci.hodinova_mzda > 
     (select AVG(hodinova_mzda) from zamestnanci);
     
+
+create or replace procedure informace_o_cloveku(id_cloveka NUMBER) as
+    jmenoo osoby.jmeno%type;
+    prijmenii osoby.prijmeni%type;
+    mestoo osoby.mesto%type;
+    begin
+        select jmeno, prijmeni, mesto into jmenoo, prijmenii, mestoo from osoby where osobni_cislo = id_cloveka;
+        DBMS_OUTPUT.put_line('Clovek s danym ID: ' || jmenoo|| ' ' || prijmenii||' bydli ve meste: ' || mestoo);
+    exception
+        when no_data_found then
+        DBMS_OUTPUT.put_line('Clovek se zadanym ID neexistuje.');
+end informace_o_cloveku;
+/
+
+grant all on Zamestnanci to xbuben05;
+grant all on Zvirata to xbuben05;
+grant all on Lecby to xbuben05;
+grant all on Predpisy to xbuben05;
+grant all on Leky to xbuben05;
+grant all on Druhy to xbuben05;
+grant all on Nemoci to xbuben05;
+grant all on Urceni_leku_pro_nemoc to xbuben05;
+grant all on Davkovani_pro_druh to xbuben05;
+grant all on Osoby to xbuben05;
+
+grant execute on informace_o_cloveku to xbuben05;
+
+    
+
+    
+call informace_o_cloveku(2);
+
+
+
+
+
+
+
