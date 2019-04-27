@@ -10,7 +10,7 @@ DROP TABLE Davkovani_pro_druh CASCADE CONSTRAINTS;
 DROP TABLE Osoby CASCADE CONSTRAINTS;
 
 DROP SEQUENCE osoba_sequence;
-
+ SET SERVEROUTPUT ON
 CREATE SEQUENCE osoba_sequence START WITH 1 INCREMENT BY 1 NOCYCLE;
 
 CREATE TABLE Osoby(
@@ -142,8 +142,8 @@ end;
 /
 
 
-INSERT INTO Osoby(osobni_cislo, jmeno, prijmeni, ulice, cislo_popisne, mesto, psc) 
-    VALUES(1, 'Jan', 'Beran', 'Božetěchova', 2, 'Česká Třebová', 56003);
+INSERT INTO Osoby( jmeno, prijmeni, ulice, cislo_popisne, mesto, psc) 
+    VALUES( 'Jan', 'Beran', 'Božetěchova', 2, 'Česká Třebová', 56003);
 
 INSERT INTO Osoby(jmeno, prijmeni, titul, ulice, cislo_popisne, mesto, psc) 
     VALUES('Stanislav', 'Stejskal','MVDr.', 'Kuldova', 654, 'Brno', 60025);
@@ -160,6 +160,12 @@ INSERT INTO Osoby(jmeno, prijmeni, ulice, cislo_popisne, mesto, psc)
 INSERT INTO Osoby(jmeno, prijmeni, ulice, cislo_popisne, mesto, psc) 
     VALUES('Kamila', 'Krátká', 'Bří Čapků', 201, 'Aš', 16003);
     
+INSERT INTO Osoby(jmeno, prijmeni, ulice, cislo_popisne, mesto, psc) 
+    VALUES('Karel', 'Krátký', 'Bří Čapků', 201, 'Aš', 16003);
+    
+INSERT INTO Osoby(jmeno, prijmeni, ulice, cislo_popisne, mesto, psc) 
+    VALUES('Jiří', 'Záviš', 'Antonínská', 2201, 'Ostrava', 16403);
+
 INSERT INTO Osoby(jmeno, prijmeni, ulice, cislo_popisne, mesto, psc) 
     VALUES('Aneta', 'Kafkova', 'Kounicova', 21, 'Valasske Mezirici', 16903);
     
@@ -261,7 +267,10 @@ INSERT INTO Zvirata(datum_narozeni, datum_posledni_prohlidky, vlastnik, druh)
 INSERT INTO Zvirata(jmeno, datum_narozeni, datum_posledni_prohlidky, vlastnik, druh) 
     VALUES('Mourek', DATE'2009-10-10', DATE'2019-3-2', (SELECT osobni_cislo FROM Osoby WHERE jmeno='Jasan' AND prijmeni='Statham' ), (SELECT id_druhu FROM Druhy WHERE nazev='kočka' ) );
 
-
+INSERT INTO Zvirata(jmeno, datum_narozeni, datum_posledni_prohlidky, vlastnik, druh) 
+    VALUES('Pardál', DATE'2011-09-10', DATE'2019-3-2', (SELECT osobni_cislo FROM Osoby WHERE jmeno='Karel' AND prijmeni='Krátký' ), (SELECT id_druhu FROM Druhy WHERE nazev='kočka' ) );
+    
+    
 INSERT INTO Lecby(diagnoza,cena, datum_zahajeni, stav, zahajujici_osetrovatel, zvire)
     VALUES('Vysoké teploty, pravděpodobně slintavka',500, DATE'2019-03-10', 'Probihajici', (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'), (SELECT cislo_zvirete FROM Zvirata WHERE jmeno='Micka'));
 
@@ -336,9 +345,43 @@ create or replace procedure informace_o_cloveku(id_cloveka NUMBER) as
 end informace_o_cloveku;
 /
 
+create or replace procedure zvirata_uzivajici_leky(lek varchar) as
+    jmenoo zvirata.jmeno%type;
+    cisloo zvirata.cislo_zvirete%type;
+    cursor kur is
+        select Z.jmeno, Z.cislo_zvirete from zvirata Z, predpisy P, leky L, lecby B 
+            where L.nazev = lek and L.kod_leku = P.predepsany_lek and P.kod_lecby = B.kod_lecby and B.zvire = Z.cislo_zvirete;
+    begin
+    open kur;
+    loop
+        fetch kur into jmenoo, cisloo;
+        DBMS_OUTPUT.put_line('Zvire s ID ' || cisloo || ' a jmenem ' || jmenoo ||' uziva lek ' || lek);
+        exit when kur%notfound;
+    end loop;        
+    close kur;
+end;
+/
+
+create or replace procedure informace_o_lidech as
+    jmenoo osoby.jmeno%type;
+    prijmenii osoby.prijmeni%type;
+    mestoo osoby.mesto%type;
+    cursor kur_cl is
+        select jmeno, prijmeni, mesto from osoby;
+    begin
+        open kur_cl;
+        loop
+        fetch kur_cl into jmenoo, prijmenii, mestoo;
+            exit when kur_cl%notfound;    
+            DBMS_OUTPUT.put_line('Clovek ' || jmenoo|| ' ' || prijmenii||' bydli ve meste: ' || mestoo);
+        end loop;
+        close kur_cl;
+end;
+/
+
 grant all on Zamestnanci to xbuben05;
 grant all on Zvirata to xbuben05;
-grant all on Lecby to xbuben05;
+grant all on Lecby to xbuben05; 
 grant all on Predpisy to xbuben05;
 grant all on Leky to xbuben05;
 grant all on Druhy to xbuben05;
@@ -347,16 +390,40 @@ grant all on Urceni_leku_pro_nemoc to xbuben05;
 grant all on Davkovani_pro_druh to xbuben05;
 grant all on Osoby to xbuben05;
 
+
+grant execute on informace_o_lidech to xbuben05;
 grant execute on informace_o_cloveku to xbuben05;
+grant execute on zvirata_uzivajici_leky to xbuben05;
 
-    
 
-    
+call zvirata_uzivajici_leky('sutlam');
+call informace_o_lidech();
 call informace_o_cloveku(2);
 
+/*Trigger na cenu leku zahlasi chybu v doplatku*/
+INSERT INTO Predpisy(doplatek, davkovani, doba_podavani, podan_v_ordinaci, kod_lecby, predepsany_lek, vypsal)
+    VALUES(1000, '2x2 tablety denně', 'tyden', 'NE', (SELECT L.kod_lecby FROM Lecby L, Zvirata Z WHERE L.datum_zahajeni=DATE'2019-03-10' AND Z.jmeno='Micka' AND L.zvire=Z.cislo_zvirete), (SELECT kod_leku FROM Leky WHERE nazev='sutlam'), (SELECT rc FROM Zamestnanci Z, Osoby O WHERE Z.osobni_zaznamy=O.osobni_cislo AND O.prijmeni='Stejskal'));
+    
+    
+/*Explain plan*/
+explain plan
+for
+select osoby.prijmeni, osoby.jmeno, count(zvirata.vlastnik) as pocet_zviratek from
+osoby join zvirata on osoby.osobni_cislo = zvirata.vlastnik
+group by(osoby.prijmeni, osoby.jmeno);
+SELECT * FROM TABLE(dbms_xplan.display);
 
+create index zvirata_vlastnik
+on zvirata(vlastnik);
+create index osoby_index
+on osoby(prijmeni, jmeno);
 
+explain plan
+for
+select osoby.prijmeni, osoby.jmeno, count(zvirata.vlastnik) as pocet_zviratek from
+zvirata join osoby on osoby.osobni_cislo = zvirata.vlastnik
+group by(osoby.prijmeni, osoby.jmeno);
+SELECT * FROM TABLE(dbms_xplan.display);
 
-
-
-
+drop index zvirata_vlastnik;
+drop index osoby_index;
